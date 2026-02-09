@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>MamasGanteng.Com</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow: hidden; 
+        }
+
+        .game-wrapper {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100vh;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+
+        /* --- PAPAN PERMAINAN --- */
+        .board-container {
+            width: min(90vh, 90vw); 
+            height: min(90vh, 90vw);
+            position: relative;
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            overflow: hidden;
+            border: 4px solid #fff;
+            background-image: url('istockphoto-455302535-612x612.jpg');
+            background-size: 100% 100%;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-color: #2c3e50; 
+            transition: background-image 0.5s ease;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(10, 1fr);
+            width: 100%; height: 100%; position: absolute; top: 0; left: 0; z-index: 1;
+        }
+
+        .cell {
+            border: 1px solid rgba(255,255,255,0.1); 
+            display: flex; padding: 2px 0 0 4px; font-size: 11px; font-weight: 800;
+            color: transparent; 
+            text-shadow: none;
+            position: relative;
+        }
+        
+        /* Token/Bidak */
+        .token {
+            width: 3.5%; height: 3.5%; 
+            border-radius: 50%; position: absolute;
+            background: radial-gradient(circle at 30% 30%, var(--token-color-light), var(--token-color-dark));
+            box-shadow: inset 0 0 5px rgba(255,255,255,0.6), 2px 4px 8px rgba(0,0,0,0.5);
+            transition: all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            z-index: 10;
+            transform: translate(-50%, -50%);
+            border: 1px solid white;
+        }
+
+        @keyframes single-hop {
+            0%   { transform: translate(-50%, -50%) scale(1); }
+            50%  { transform: translate(-50%, -80%) scale(1.3); box-shadow: 0 25px 25px rgba(0,0,0,0.4); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+        .jumping { animation: single-hop 0.8s ease-in-out forwards; }
+
+        @keyframes hop-climb {
+            0%   { transform: translate(-50%, -50%) scale(1); }
+            50%  { transform: translate(-50%, -50%) scale(1.5) translateY(-30px); z-index: 20;}
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+        .climbing { animation: hop-climb 1.5s ease-in-out forwards; }
+
+        @keyframes shake-fall {
+            0%, 100% { transform: translate(-50%, -50%) scale(1); }
+            10%, 30%, 50%, 70%, 90% { transform: translate(-55%, -50%) scale(0.9) rotate(-10deg); }
+            20%, 40%, 60%, 80% { transform: translate(-45%, -50%) scale(0.9) rotate(10deg); }
+        }
+        .falling { animation: shake-fall 1.5s ease-in-out forwards; }
+
+        /* --- CONTROLS --- */
+        .controls {
+            width: 280px; background: rgba(0,0,0,0.6); backdrop-filter: blur(10px);
+            padding: 15px; border-radius: 15px; display: flex; flex-direction: column; gap: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1);
+            max-height: 95vh; overflow-y: auto; z-index: 50;
+        }
+        
+        /* --- 3D DICE STYLES (FIXED COORDINATES) --- */
+        .scene {
+            width: 80px; height: 80px; margin: 10px auto; perspective: 400px;
+        }
+        .cube {
+            width: 100%; height: 100%; position: relative;
+            transform-style: preserve-3d;
+            transform: translateZ(-40px);
+            transition: transform 1.5s ease-out; /* Animasi lebih halus */
+        }
+        .cube__face {
+            position: absolute; width: 80px; height: 80px;
+            border: 2px solid #ccc; line-height: 80px; font-size: 40px; font-weight: bold;
+            color: #333; text-align: center; background: white; border-radius: 10px;
+            box-shadow: inset 0 0 15px rgba(0,0,0,0.1);
+            backface-visibility: hidden;
+        }
+        /* Definisi Sisi Dadu yang Benar */
+        .cube__face--1 { transform: rotateY(  0deg) translateZ(40px); } /* Depan */
+        .cube__face--2 { transform: rotateY(180deg) translateZ(40px); } /* Belakang */
+        .cube__face--3 { transform: rotateY( 90deg) translateZ(40px); } /* Kanan */
+        .cube__face--4 { transform: rotateY(-90deg) translateZ(40px); } /* Kiri */
+        .cube__face--5 { transform: rotateX( 90deg) translateZ(40px); } /* Atas */
+        .cube__face--6 { transform: rotateX(-90deg) translateZ(40px); } /* Bawah */
+
+        .player-row {
+            display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.9); 
+            color: #333; padding: 6px 10px; border-radius: 6px; font-size: 0.85rem;
+        }
+        .btn-roll {
+            background: #2980b9; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-roll:hover { background: #3498db; }
+        .btn-roll:disabled { background: #7f8c8d; cursor: not-allowed; opacity: 0.7; }
+
+        /* --- QUIZ MODAL --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 200; display: none;
+            justify-content: center; align-items: center;
+        }
+        .quiz-box {
+            background: #ecf0f1; color: #333; padding: 25px; border-radius: 15px;
+            width: 90%; max-width: 400px; text-align: center;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            border: 2px solid #f1c40f;
+        }
+        
+        .quiz-question { font-size: 1.2rem; font-weight: bold; margin-bottom: 20px; color: #2c3e50; }
+        .quiz-options { display: flex; flex-direction: column; gap: 10px; }
+        .quiz-btn {
+            background: #34495e; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 1rem; cursor: pointer; transition: 0.2s;
+            font-weight: bold;
+        }
+        .quiz-btn:hover { background: #2c3e50; transform: scale(1.02); }
+        .correct-anim { background: #27ae60 !important; transform: scale(1.05); }
+        .wrong-anim { background: #c0392b !important; transform: scale(0.95); }
+
+        @media (max-width: 900px) {
+            .game-wrapper { flex-direction: column; padding: 5px; height: auto;}
+            .board-container { width: 95vw; height: 95vw; }
+            .controls { width: 90vw; flex-direction: row; flex-wrap: wrap; justify-content: center; }
+            .player-row { width: 48%; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="modal-overlay" id="quiz-modal">
+    <div class="quiz-box">
+        <h3 style="margin-top:0; color:#e67e22;">🔥 Kuis Tantangan</h3>
+        <div id="quiz-q" class="quiz-question">Loading...</div>
+        <div id="quiz-opts" class="quiz-options"></div>
+        <div class="quiz-box">
+        
+    <div id="quiz-timer" style="font-size: 20px; font-weight: bold; color: #c0392b; margin-bottom: 10px;">Waktu: 3</div>
+    
+    <div id="quiz-q" class="quiz-question">Loading...</div>
+    <div id="quiz-opts" class="quiz-options"></div>
+</div>
+    </div>
+</div>
+
+<div class="game-wrapper">
+    <div class="board-container" id="board-container">
+        <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="controls">
+        <h2 style="margin:0; text-align:center; color:#f1c40f;">Ular Tangga Pintar<br><span style="font-size:0.70em; color:white;">By. Mamasganteng.com</span></h3>
+        
+        <div class="scene">
+            <div class="cube" id="cube">
+                <div class="cube__face cube__face--1">1</div>
+                <div class="cube__face cube__face--2">2</div>
+                <div class="cube__face cube__face--3">3</div>
+                <div class="cube__face cube__face--4">4</div>
+                <div class="cube__face cube__face--5">5</div>
+                <div class="cube__face cube__face--6">6</div>
+            </div>
+        </div>
+
+        <div id="player-controls-area" style="display:flex; flex-direction:column; gap:15px; width:100%;"></div>
+
+        <hr style="width:100%; border:0; border-top:1px solid #555;">
+
+        <div style="display:flex; gap:5px; width:100%;">
+            <button class="btn-roll" style="background:#e67e22; width:500%;" onclick="toggleFullScreen()">⛶ Full Screen</button>
+            <button class="btn-roll" style="background:#c0392b; width:500%;" onclick="resetGame()">↻ Reset</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- KONFIGURASI PEMAIN ---
+    const players = [
+        { name: 'Team 1', colorLight: '#ff7675', colorDark: '#c0392b', pos: 1 }, 
+        { name: 'Team 2', colorLight: '#74b9ff', colorDark: '#0984e3', pos: 1 }, 
+        { name: 'Team 3', colorLight: '#55efc4', colorDark: '#00b894', pos: 1 }, 
+        { name: 'Team 4', colorLight: '#ffeaa7', colorDark: '#fdcb6e', pos: 1 }, 
+        { name: 'Team 5', colorLight: '#a29bfe', colorDark: '#8e44ad', pos: 1 }  
+    ];
+
+    // --- DATA KUIS ---
+    const questions = [
+        { q: "Apa arti nama 'Pancasila' secara bahasa?", options: ["Lima Tiang", "Lima Dasar", "Lima Aturan"], correct: 1 },
+        { q: "Ada berapa jumlah Rukun Iman?", options: ["5 (Lima)", "6 (Enam)", "3 (Tiga)"], correct: 1 },
+        { q: "Siapakah Presiden Pertama Indonesia?", options: ["Soeharto", "Ir. Soekarno", "Habibie"], correct: 1 },
+        { q: "Lambang sila pertama Pancasila adalah?", options: ["Bintang", "Pohon Beringin", "Rantai"], correct: 0 },
+        { q: "Ibukota Indonesia (saat ini) adalah?", options: ["Bandung", "Surabaya", "Jakarta"], correct: 2 },
+        { q: "Hewan apa yang bisa hidup di darat dan air?", options: ["Mamalia", "Amfibi", "Reptil"], correct: 1 },
+        { q: "Bendera Indonesia berwarna?", options: ["Merah Putih", "Putih Merah", "Merah Biru"], correct: 0 },
+        { q: "Siapa Guru paling tampan di Kemandungan 3?", options: ["Bu Umi", "Pak Angga Dong", "Bu Zub"], correct: 1 }
+    ];
+
+    // --- PETA ULAR TANGGA ---
+    const shortcuts = {
+        1: 38, 4: 14, 9: 31, 21: 42, 28: 84, 51: 67, 71: 91, 80: 100, // Tangga
+        17:7, 54: 34, 62: 19, 64: 60, 87: 24, 93: 73, 95: 75, 98: 79  // Ular
+    };
+
+    // --- VARIABEL GLOBAL ---
+    const gridEl = document.getElementById('grid');
+    const boardContainer = document.getElementById('board-container');
+    const cube = document.getElementById('cube');
+    let isAnimating = false;
+    let currentPlayerIndex = 0; 
+    let audioCtx;
+
+    // --- INISIALISASI ---
+    window.onload = function() {
+        createGrid();
+        renderControls();
+        setTimeout(renderTokens, 500);
+        initAudioContext();
+    };
+    window.addEventListener('resize', renderTokens);
+
+    // --- AUDIO SYSTEM ---
+    function initAudioContext() {
+        if (!audioCtx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            audioCtx = new AudioContext();
+        }
+    }
+    
+    function playSound(type) {
+        if (!audioCtx) initAudioContext();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        
+        try {
+            const osc = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            if (type === 'jump') {
+                osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(600, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                osc.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'win') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(400, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(800, audioCtx.currentTime + 0.3);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                osc.stop(audioCtx.currentTime + 0.3);
+            } else if (type === 'wrong') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.linearRampToValueAtTime(100, audioCtx.currentTime + 0.3);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.3);
+                osc.stop(audioCtx.currentTime + 0.3);
+            }
+            
+            osc.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            osc.start();
+        } catch(e) { console.log("Audio blocked"); }
+    }
+
+    // --- GRID SETUP ---
+    function createGrid() {
+        gridEl.innerHTML = '';
+        for (let row = 0; row < 10; row++) {
+            for (let col = 0; col < 10; col++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                let actualRow = 9 - row; 
+                let number = (actualRow % 2 === 0) ? (actualRow * 10 + col + 1) : (actualRow * 10 + (10 - col));
+                cell.innerText = number; cell.id = `cell-num-${number}`;
+                gridEl.appendChild(cell);
+            }
+        }
+    }
+
+    function getCenterOfCell(num) {
+        const cell = document.getElementById(`cell-num-${num}`);
+        if (!cell) return {x:0, y:0};
+        const rect = cell.getBoundingClientRect();
+        const boardRect = boardContainer.getBoundingClientRect();
+        return { x: (rect.left - boardRect.left) + (rect.width / 2), y: (rect.top - boardRect.top) + (rect.height / 2) };
+    }
+
+    function renderTokens() {
+        document.querySelectorAll('.token:not(.climbing):not(.falling):not(.jumping)').forEach(t => t.remove());
+        players.forEach((p, index) => {
+            if(document.querySelector(`.token[data-player="${index}"].climbing`) || 
+               document.querySelector(`.token[data-player="${index}"].falling`) ||
+               document.querySelector(`.token[data-player="${index}"].jumping`)) return;
+
+            const pos = getCenterOfCell(p.pos); if (pos.x === 0) return;
+            const token = document.createElement('div');
+            token.className = 'token'; token.setAttribute('data-player', index);
+            token.style.setProperty('--token-color-light', p.colorLight);
+            token.style.setProperty('--token-color-dark', p.colorDark);
+            
+            const offset = (index - 2) * 5; 
+            token.style.left = (pos.x + offset) + 'px'; token.style.top = (pos.y + offset) + 'px';
+            boardContainer.appendChild(token);
+        });
+    }
+
+    function renderControls() {
+        const area = document.getElementById('player-controls-area'); area.innerHTML = '';
+        players.forEach((p, idx) => {
+            const div = document.createElement('div'); div.className = 'player-row';
+            div.innerHTML = `<div style="display:flex; align-items:center; gap:8px;"><div style="width:12px; height:12px; border-radius:50%; background:${p.colorDark};"></div><b>${p.name}</b></div><div id="pos-txt-${idx}" style="font-size:12px;">Pos: ${p.pos}</div><button class="btn-roll" id="btn-${idx}" onclick="startTurn(${idx})">Jawab & Maju</button>`;
+            area.appendChild(div);
+        });
+    }
+
+    // --- GAME LOGIC FLOW ---
+
+   // Tambahkan variabel global untuk menyimpan timer
+    let quizTimerInterval; 
+
+    function startTurn(idx) {
+        if (isAnimating) return;
+        isAnimating = true; 
+        currentPlayerIndex = idx;
+        
+        const qIndex = Math.floor(Math.random() * questions.length);
+        const qData = questions[qIndex];
+        
+        const modal = document.getElementById('quiz-modal');
+        const qText = document.getElementById('quiz-q');
+        const qOpts = document.getElementById('quiz-opts');
+        const timerEl = document.getElementById('quiz-timer'); // Ambil elemen timer
+        
+        qText.innerText = qData.q;
+        qOpts.innerHTML = '';
+        
+        qData.options.forEach((opt, i) => {
+            const btn = document.createElement('button');
+            btn.className = 'quiz-btn';
+            btn.innerText = opt;
+            // Kirim 'this' agar tombol bisa berubah warna
+            btn.onclick = function() { submitAnswer(i === qData.correct, this); };
+            qOpts.appendChild(btn);
+        });
+        
+        modal.style.display = 'flex';
+
+        // --- LOGIKA TIMER 5 DETIK ---
+        let timeLeft = 5;
+        timerEl.innerText = "Waktu: " + timeLeft;
+        
+        // Hapus timer lama jika ada (safety)
+        clearInterval(quizTimerInterval);
+
+        quizTimerInterval = setInterval(() => {
+            timeLeft--;
+            timerEl.innerText = "Waktu: " + timeLeft;
+
+            if (timeLeft <= 0) {
+                clearInterval(quizTimerInterval); // Hentikan waktu
+                submitAnswer(false, null); // Paksa jawab SALAH karena waktu habis
+            }
+        }, 1000); // Jalan setiap 1000ms (1 detik)
+    }
+
+    function submitAnswer(isCorrect, btnElement) {
+        // Matikan timer segera setelah user menjawab atau waktu habis
+        clearInterval(quizTimerInterval);
+
+        const allBtns = document.querySelectorAll('.quiz-btn');
+        allBtns.forEach(b => b.disabled = true);
+
+        if (isCorrect) {
+            // Jika benar dan tombol ditekan (bukan habis waktu)
+            if(btnElement) btnElement.classList.add('correct-anim');
+            
+            playSound('win');
+            setTimeout(() => {
+                document.getElementById('quiz-modal').style.display = 'none';
+                executeDiceRoll(); 
+            }, 800);
+        } else {
+            // Jika salah atau waktu habis
+            if(btnElement) {
+                btnElement.classList.add('wrong-anim'); // Animasi tombol merah
+                alert("Jawaban Salah! Giliran hangus.");
+            } else {
+                alert("Waktu Habis! Giliran hangus."); // Pesan khusus jika waktu habis
+            }
+
+            playSound('wrong');
+            setTimeout(() => {
+                document.getElementById('quiz-modal').style.display = 'none';
+                isAnimating = false; 
+                renderControls(); 
+            }, 800);
+        }
+    }
+
+    // --- FIX LOGIKA DADU DISINI ---
+    function executeDiceRoll() {
+        document.querySelectorAll('.btn-roll').forEach(b => b.disabled = true);
+        
+        const diceResult = Math.floor(Math.random() * 6) + 1;
+        
+        let xRo = 0, yRo = 0;
+        // Kita tambah 1440 derajat (4 putaran) biar efek muternya kelihatan
+        const spin = 1440; 
+
+        // MAPPING YANG SUDAH DIPERBAIKI SESUAI CSS
+        // Agar sisi dadu menghadap ke kamera (z-axis depan), kita harus memutar cube SEBALIKNYA.
+        switch(diceResult) {
+            case 1: 
+                // Front face is at 0,0. No rotation needed.
+                xRo = 0; yRo = 0; 
+                break;
+            case 2: 
+                // Back face is at Y=180. Rotate Y 180 to show it.
+                xRo = 0; yRo = 180; 
+                break;
+            case 3: 
+                // Right face is at Y=90. We must rotate Y -90 to bring it to center.
+                xRo = 0; yRo = -90; 
+                break;
+            case 4: 
+                // Left face is at Y=-90. We must rotate Y 90 to bring it to center.
+                xRo = 0; yRo = 90; 
+                break;
+            case 5: 
+                // Top face is at X=90. We must rotate X -90 to bring it to center.
+                xRo = -90; yRo = 0; 
+                break;
+            case 6: 
+                // Bottom face is at X=-90. We must rotate X 90 to bring it to center.
+                xRo = 90; yRo = 0; 
+                break;
+        }
+
+        // Terapkan Transform dengan tambahan spin agar berputar
+        cube.style.transform = `translateZ(-40px) rotateX(${xRo + spin}deg) rotateY(${yRo + spin}deg)`;
+        
+        setTimeout(() => {
+            // Kirim angka yang SAMA persis ke pergerakan bidak
+            movePlayerToken(currentPlayerIndex, diceResult);
+        }, 1500); 
+    }
+
+    const delay = ms => new Promise(res => setTimeout(res, ms));
+
+    async function movePlayerToken(idx, steps) {
+        try {
+            const p = players[idx];
+            let currentPos = p.pos;
+            let targetPos = currentPos + steps;
+            if (targetPos > 100) targetPos = 100;
+
+            const tokenEl = document.querySelector(`.token[data-player="${idx}"]`);
+            if(!tokenEl) { renderTokens(); isAnimating = false; return; }
+            
+            for (let i = currentPos + 1; i <= targetPos; i++) {
+                const newCenter = getCenterOfCell(i);
+                const offset = (idx - 2) * 5;
+                
+                playSound('jump');
+                tokenEl.classList.add('jumping');
+                tokenEl.style.left = (newCenter.x + offset) + 'px';
+                tokenEl.style.top = (newCenter.y + offset) + 'px';
+                
+                await delay(600); 
+                tokenEl.classList.remove('jumping');
+                await delay(100);
+            }
+
+            p.pos = targetPos;
+            updateUI(idx);
+            await delay(300); 
+
+            if (shortcuts[targetPos]) {
+                const finalPos = shortcuts[targetPos];
+                const isLadder = finalPos > targetPos;
+                
+                playSound(isLadder ? 'win' : 'wrong');
+                tokenEl.classList.add(isLadder ? 'climbing' : 'falling');
+                
+                const newCenter = getCenterOfCell(finalPos);
+                const offset = (idx - 2) * 5; 
+                tokenEl.style.left = (newCenter.x + offset) + 'px';
+                tokenEl.style.top = (newCenter.y + offset) + 'px';
+                
+                p.pos = finalPos; 
+                
+                await delay(1500); 
+                tokenEl.classList.remove('climbing', 'falling');
+                updateUI(idx);
+            }
+            
+            if (p.pos === 100) {
+                alert(`🎉 SELAMAT! ${p.name} MENANG! 🎉`);
+                resetGame();
+            }
+
+        } catch (error) {
+            console.error("Game Error:", error);
+        } finally {
+            isAnimating = false; 
+            document.querySelectorAll('.btn-roll').forEach(b => b.disabled = false);
+            renderTokens(); 
+        }
+    }
+
+    function updateUI(idx) { document.getElementById(`pos-txt-${idx}`).innerText = `Pos: ${players[idx].pos}`; }
+    
+    function toggleFullScreen() { 
+        if (!document.fullscreenElement) document.documentElement.requestFullscreen(); 
+        else if (document.exitFullscreen) document.exitFullscreen(); 
+    }
+    
+    function resetGame() {
+        players.forEach(p => p.pos = 1); 
+        document.querySelectorAll('[id^="pos-txt-"]').forEach(el => el.innerText = "Pos: 1");
+        renderTokens(); 
+        cube.style.transform = `translateZ(-40px) rotateX(0deg) rotateY(0deg)`;
+        isAnimating = false;
+        document.querySelectorAll('.btn-roll').forEach(b => b.disabled = false);
+    }
+</script>
+</body>
+</html>
